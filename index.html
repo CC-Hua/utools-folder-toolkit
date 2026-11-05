@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <title>文件夹工具</title>
+    <link rel="stylesheet" href="./assets/bootstrap-nightshade.min.css"/>
+    <link rel="stylesheet" href="./assets/style.css"/>
+</head>
+<body>
+<div id="app" class="container pt-3" @dragover.prevent @drop.prevent>
+    <div class="alert alert-warning py-2" v-if="resultMessage">
+        <pre class="mb-0" style="white-space: pre-wrap;">{{resultMessage}}</pre>
+    </div>
+    <form autocomplete="off" @submit.prevent="onSubmit">
+        <!-- ===== 新建文件夹：原 utools-file-to-folder 主界面 ===== -->
+        <template v-if="!isDissolve">
+            <div class="mb-3 row">
+                <div class="col-sm-12 text-muted" v-if="currentFolderPath">当前路径：{{currentFolderPath}}</div>
+                <div class="col-sm-12 text-muted" v-else>未读取到文件管理器的当前路径，可直接输入完整绝对路径</div>
+            </div>
+            <div class="mb-3 row">
+                <label for="folderName" class="col-sm-3 col-form-label">新建文件夹名：</label>
+                <div class="col-sm-9">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="folderName" ref="folderNameInput"
+                               v-model="folderName" autofocus
+                               placeholder="请输入新文件夹名或选择已经存在的文件夹，列表中的项目将移动到此文件夹中">
+                        <button class="btn btn-outline-secondary" type="button" @click="selectFolderName">选文件夹</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-primary" @click="moveOrCopyFile(false)"
+                            v-if="filesData.length" :disabled="!canMoveOrCopy">移动到新文件夹
+                    </button>
+                    <button type="button" class="btn btn-primary" @click="createCurrentFolder()"
+                            v-if="!filesData.length" :disabled="!canCreateFolder">新建文件夹
+                    </button>
+                </div>
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-info" @click="moveOrCopyFile(true)"
+                            :disabled="!canMoveOrCopy">复制到新文件夹
+                    </button>
+                </div>
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-danger" @click="clearFileNames()"
+                            :disabled="!filesData.length && !folderName">清空选择
+                    </button>
+                </div>
+            </div>
+        </template>
+
+        <!-- ===== 解散文件夹：两套选项合并后的统一面板 ===== -->
+        <template v-else>
+            <div class="mb-3 row">
+                <div class="col-sm-12">
+                    <div class="alert alert-warning py-2 mb-0">
+                        解散文件夹：把选中文件夹内的项目移动到目标目录，再删除已清空的文件夹。
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <label for="targetDir" class="col-sm-3 col-form-label">解散到：</label>
+                <div class="col-sm-9">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="targetDir" ref="targetDirInput"
+                               v-model="options.targetDir"
+                               placeholder="留空 = 各文件夹的上一级目录；可填子目录名或绝对路径">
+                        <button class="btn btn-outline-secondary" type="button" @click="selectTargetDir">选文件夹</button>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <span class="col-sm-3 col-form-label">子目录处理：</span>
+                <div class="col-sm-9">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="subRecursive"
+                               v-model="options.subFolder" value="recursive">
+                        <label class="form-check-label" for="subRecursive">
+                            解散所有子目录，把文件全部提取出来
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="subKeep"
+                               v-model="options.subFolder" value="keep">
+                        <label class="form-check-label" for="subKeep">
+                            只解散一级目录，子目录原样移出来
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <span class="col-sm-3 col-form-label">重名处理：</span>
+                <div class="col-sm-9">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="dupNumber"
+                               v-model="options.duplicate" value="number">
+                        <label class="form-check-label" for="dupNumber">
+                            自动追加序号，例如「报告 (1).pdf」
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="dupPrefix"
+                               v-model="options.duplicate" value="prefix">
+                        <label class="form-check-label" for="dupPrefix">
+                            重命名为「文件夹__文件名」，仍然重名则追加「__extracted」后缀
+                        </label>
+                    </div>
+                    <div class="form-check ms-4 mb-1">
+                        <input class="form-check-input" type="checkbox" id="renameAll"
+                               v-model="options.renameAll" :disabled="options.duplicate !== 'prefix'">
+                        <label class="form-check-label" for="renameAll">
+                            {{ options.duplicate === 'prefix' ? '所有文件都按上述形式重命名（不只重名的）' : '所有文件都重命名（仅「文件夹__文件名」策略可用）' }}
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" id="dupOverwrite"
+                               v-model="options.duplicate" value="overwrite">
+                        <label class="form-check-label" for="dupOverwrite">
+                            覆盖同名文件（目标同名项是文件夹时仍改用序号，避免误删目录）
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <div class="col-sm-9 offset-sm-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" role="switch" id="autoRun"
+                               v-model="options.autoRun">
+                        <label class="form-check-label" for="autoRun">
+                            <span v-if="options.autoRun">选中文件夹后直接解散，不再显示本面板</span>
+                            <span v-else>选中文件夹后显示本面板，手动确认再解散</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3 row">
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-warning" @click="dissolve()"
+                            :disabled="!filesData.length">解散文件夹
+                    </button>
+                </div>
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-outline-secondary" @click="selectFolders()">添加文件夹</button>
+                </div>
+                <div class="col-sm-3">
+                    <button type="button" class="btn btn-danger" @click="clearFileNames()"
+                            :disabled="!filesData.length">清空选择
+                    </button>
+                </div>
+            </div>
+        </template>
+    </form>
+
+    <table class="table table-striped table-hover" v-if="filesData.length">
+        <caption></caption>
+        <thead>
+        <tr>
+            <th scope="col" style="width: 50px;">#</th>
+            <th scope="col" style="width: auto;">文件完整路径</th>
+            <th scope="col" style="width: 80px;">类型</th>
+            <th scope="col" style="width: 80px;">操作</th>
+        </tr>
+        </thead>
+        <tr :key="index" v-for="(file, index) in filesData">
+            <td>{{index + 1}}</td>
+            <td>{{file.path}}</td>
+            <td>
+                <span class="badge bg-success" v-if="file.isDirectory">目录</span>
+                <span class="badge bg-primary" v-if="file.isFile">文件</span>
+            </td>
+            <td>
+                <button type="button" class="btn btn-danger btn-sm" @click="removeFileFromList(file)">移除</button>
+            </td>
+        </tr>
+    </table>
+
+    <div class="drop-zone" @dragover.prevent @drop.prevent="dragFiles">
+        <div class="d-flex p-2 justify-content-center align-items-center flex-column" style="height: 200px;">
+            <img src="./assets/drop-icon.png" alt="拖动文件到此处" style="width:100px;" class="align-self-center"/>
+            <span class="align-self-center drop-zone-hint">
+                {{ isDissolve ? '拖动文件夹到此处（仅支持文件夹）' : '拖动文件或文件夹到此处' }}
+            </span>
+        </div>
+    </div>
+</div>
+<script type="text/javascript" src="./assets/vue.global.prod.js"></script>
+<script type="text/javascript" src="./assets/index.js"></script>
+</body>
+</html>

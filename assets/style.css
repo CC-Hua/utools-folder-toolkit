@@ -1,0 +1,21 @@
+/* 拖拽区。
+   原 utools-file-to-folder 的 index.html 用的是 `dashed` / `text-black-30` 这类 Bootstrap 里不存在的类名，
+   实际没有样式生效；这里补一份真正起作用、且能跟随深色主题的样式。 */
+.drop-zone {
+    border: 2px dashed rgba(128, 128, 128, 0.5);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease-in-out;
+}
+
+.drop-zone:hover {
+    border-color: var(--bs-primary, #0d6efd);
+}
+
+.drop-zone-hint {
+    opacity: 0.6;
+}
+
+html.dark .drop-zone {
+    border-color: rgba(255, 255, 255, 0.25);
+}

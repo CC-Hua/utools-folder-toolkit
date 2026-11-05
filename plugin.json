@@ -1,0 +1,42 @@
+{
+  "main": "index.html",
+  "logo": "logo.png",
+  "preload": "preload.js",
+  "features": [
+    {
+      "code": "新建文件夹",
+      "description": "选中文件或文件夹，移动或复制到一个新建文件夹中，也可以指定已经存在的文件夹",
+      "explain": "选中文件或文件夹，移动或复制到一个新建文件夹中，也可以指定已经存在的文件夹",
+      "icon": "assets/icon-new-folder.png",
+      "cmds": [
+        "新建文件夹",
+        "New Folder",
+        {
+          "type": "files",
+          "label": "放入新建文件夹",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      ]
+    },
+    {
+      "code": "解散文件夹",
+      "description": "解散选中的文件夹：把里面的内容移出来，并删除清空后的文件夹",
+      "explain": "解散选中的文件夹：把里面的内容移出来，并删除清空后的文件夹",
+      "icon": "assets/icon-dissolve-folder.png",
+      "cmds": [
+        "解散文件夹",
+        "Dissolve Folder",
+        "提取文件",
+        "解散目录",
+        {
+          "type": "files",
+          "label": "解散选中的文件夹",
+          "fileType": "directory",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      ]
+    }
+  ]
+}
